@@ -4,7 +4,7 @@ authors = [
 ]
 description = "The easiest way to use sockets in Rust"
 edition = "2021"
-license-file = "LICENSE"
+license = "Apache-2.0"
 name = "easynetwork"
 repository = "https://github.com/francis-clairicia/EasyNetwork.rs"
 readme = "README.md"
