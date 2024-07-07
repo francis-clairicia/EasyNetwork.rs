@@ -1,0 +1,13 @@
+[package]
+authors = [
+  "FrankySnow9 <clairicia.rcj.francis@gmail.com>",
+]
+description = "The easiest way to use sockets in Rust"
+edition = "2021"
+license-file = "LICENSE"
+name = "easynetwork"
+repository = "https://github.com/francis-clairicia/EasyNetwork.rs"
+readme = "README.md"
+version = "0.0.0"
+
+[dependencies]
