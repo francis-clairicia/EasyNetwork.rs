@@ -1,0 +1,7 @@
+{
+    "rust-analyzer.cargo.features": [
+        "nightly",
+        "json"
+    ],
+    "rust-analyzer.check.command": "clippy"
+}

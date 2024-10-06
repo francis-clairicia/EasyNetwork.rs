@@ -1,0 +1,1 @@
+pub const DEFAULT_SERIALIZER_LIMIT: usize = 64 * 1024;

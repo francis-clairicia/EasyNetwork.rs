@@ -1,13 +1,15 @@
 [package]
-authors = [
-  "FrankySnow9 <clairicia.rcj.francis@gmail.com>",
-]
-description = "The easiest way to use sockets in Rust"
 edition = "2021"
-license = "Apache-2.0"
 name = "easynetwork"
-repository = "https://github.com/francis-clairicia/EasyNetwork.rs"
-readme = "README.md"
-version = "0.0.0"
+version = "0.1.0"
+
+[features]
+json = ["dep:serde", "dep:serde_json"]
+nightly = []
 
 [dependencies]
+serde = {version = "^1.0.210", optional = true}
+serde_json = {version = "^1.0.128", optional = true}
+
+[dev-dependencies]
+serde = {version = "*", features = ["derive"]}

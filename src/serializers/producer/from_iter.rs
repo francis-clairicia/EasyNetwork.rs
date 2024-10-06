@@ -1,0 +1,30 @@
+use super::traits::{Producer, ProducerState};
+use std::{convert::Infallible, pin::Pin};
+use std::fmt;
+
+pub fn from_iter<I>(iterable: impl IntoIterator<Item = I::Item, IntoIter = I>) -> FromIterProducer<I>
+where
+    I: Iterator<Item = Vec<u8>>,
+{
+    FromIterProducer(iterable.into_iter())
+}
+
+pub struct FromIterProducer<I>(I);
+
+impl<F> fmt::Debug for FromIterProducer<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FromIterProducer").finish()
+    }
+}
+
+impl<I: Iterator<Item = Vec<u8>>> Producer for FromIterProducer<I> {
+    type Error = Infallible;
+
+    fn next(self: Pin<&mut Self>) -> ProducerState<Self::Error> {
+        // SAFETY: We are not moving out of the pinned field.
+        match (unsafe { &mut self.get_unchecked_mut().0 }).next() {
+            Some(bytes) => ProducerState::Yielded(bytes),
+            None => ProducerState::Complete(Ok(())),
+        }
+    }
+}
