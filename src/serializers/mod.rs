@@ -58,14 +58,14 @@ pub(crate) mod testing_tools {
             &'serializer self,
             packet: &'packet Self::SerializedPacket,
         ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
-            Box::pin(producer::from_fn_once(move || Ok(Cow::Borrowed(packet))))
+            producer::from_fn_once(move || Ok(Cow::Borrowed(packet)))
         }
 
         fn incremental_deserialize<'serializer>(
             &'serializer self,
         ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>>
         {
-            Box::pin(consumer::from_fn(move |buf| ConsumerState::Complete(Ok(buf.to_vec()), Default::default())))
+            consumer::from_fn(move |buf| ConsumerState::Complete(Ok(buf.to_vec()), Default::default()))
         }
     }
 }

@@ -77,7 +77,7 @@ impl<S: PacketSerializerWithSeparator> IncrementalPacketSerializer for AutoSepar
         &'serializer self,
         packet: &'packet Self::SerializedPacket,
     ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
-        Box::pin(producer::from_fn_once(move || {
+        producer::from_fn_once(move || {
             self.inner.serialize(packet).map(|mut packet| {
                 let separator = self.separator();
 
@@ -86,7 +86,7 @@ impl<S: PacketSerializerWithSeparator> IncrementalPacketSerializer for AutoSepar
                 }
                 Cow::Owned(packet)
             })
-        }))
+        })
     }
 
     fn incremental_deserialize<'serializer>(
@@ -94,7 +94,7 @@ impl<S: PacketSerializerWithSeparator> IncrementalPacketSerializer for AutoSepar
     ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>> {
         let mut reader = BufferedStreamReader::new();
 
-        Box::pin(consumer::from_fn(move |buf| {
+        consumer::from_fn(move |buf| {
             use IncrementalDeserializeError::*;
 
             match reader.read_until_from(buf, self.separator(), self.buffer_limit(), self.keep_separator_at_end()) {
@@ -106,6 +106,6 @@ impl<S: PacketSerializerWithSeparator> IncrementalPacketSerializer for AutoSepar
                 Err(StreamReadError::InputNeeded) => ConsumerState::InputNeeded,
                 Err(StreamReadError::Error(error, remainder)) => ConsumerState::Complete(Err(LimitOverrun(error)), remainder),
             }
-        }))
+        })
     }
 }

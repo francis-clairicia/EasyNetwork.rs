@@ -3,11 +3,11 @@ use std::borrow::Cow;
 use std::fmt;
 use std::{convert::Infallible, pin::Pin};
 
-pub fn from_iter<I>(iterable: impl IntoIterator<Item = I::Item, IntoIter = I>) -> FromIterProducer<I>
+pub fn from_iter<I>(iterable: impl IntoIterator<Item = I::Item, IntoIter = I>) -> Pin<Box<FromIterProducer<I>>>
 where
     I: Iterator<Item = Vec<u8>>,
 {
-    FromIterProducer(iterable.into_iter())
+    Box::pin(FromIterProducer(iterable.into_iter()))
 }
 
 pub struct FromIterProducer<I>(I);

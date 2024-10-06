@@ -4,11 +4,11 @@ use std::{
     pin::Pin,
 };
 
-pub fn from_fn<T, E, F>(f: F) -> FromFnConsumer<F>
+pub fn from_fn<T, E, F>(f: F) -> Pin<Box<FromFnConsumer<F>>>
 where
     F: for<'buf> FnMut(&'buf [u8]) -> ConsumerState<'buf, T, E>,
 {
-    FromFnConsumer(f)
+    Box::pin(FromFnConsumer(f))
 }
 
 pub struct FromFnConsumer<F>(F);

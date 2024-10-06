@@ -6,11 +6,11 @@ use std::{
     pin::Pin,
 };
 
-pub fn from_fn_once<'buf, E, F>(f: F) -> FromFnOnceProducer<F>
+pub fn from_fn_once<'buf, E, F>(f: F) -> Pin<Box<FromFnOnceProducer<F>>>
 where
     F: FnOnce() -> Result<Cow<'buf, [u8]>, E>,
 {
-    FromFnOnceProducer(FromFnOnceProducerState::Start(f))
+    Box::pin(FromFnOnceProducer(FromFnOnceProducerState::Start(f)))
 }
 
 pub struct FromFnOnceProducer<F>(FromFnOnceProducerState<F>);

@@ -6,11 +6,11 @@ use std::{
     pin::Pin,
 };
 
-pub fn from_coroutine<E, G>(coroutine: G) -> FromCoroutineProducer<G>
+pub fn from_coroutine<E, G>(coroutine: G) -> Pin<Box<FromCoroutineProducer<G>>>
 where
     G: Coroutine<Yield = Vec<u8>, Return = Result<(), E>>,
 {
-    FromCoroutineProducer(coroutine)
+    Box::pin(FromCoroutineProducer(coroutine))
 }
 
 pub struct FromCoroutineProducer<G>(G);
@@ -41,7 +41,7 @@ mod tests {
     use crate::serializers::producer::{Producer, ProducerState};
 
     use super::from_coroutine;
-    use std::{convert::Infallible, pin::Pin};
+    use std::convert::Infallible;
 
     #[inline(always)]
     fn infallible<T>(v: T) -> Result<T, Infallible> {
@@ -59,9 +59,9 @@ mod tests {
             },
         );
 
-        assert!(matches!(Pin::new(&mut producer).next(), ProducerState::Yielded(b) if *b == *b"pac"));
-        assert!(matches!(Pin::new(&mut producer).next(), ProducerState::Yielded(b) if *b == *b"ket\n"));
-        assert!(matches!(Pin::new(&mut producer).next(), ProducerState::Complete(Ok(()))));
+        assert!(matches!(producer.as_mut().next(), ProducerState::Yielded(b) if *b == *b"pac"));
+        assert!(matches!(producer.as_mut().next(), ProducerState::Yielded(b) if *b == *b"ket\n"));
+        assert!(matches!(producer.as_mut().next(), ProducerState::Complete(Ok(()))));
     }
 
     #[test]
@@ -74,7 +74,7 @@ mod tests {
             },
         );
 
-        assert!(matches!(Pin::new(&mut producer).next(), ProducerState::Yielded(b) if *b == *b"pac"));
-        assert!(matches!(Pin::new(&mut producer).next(), ProducerState::Complete(Err(42))));
+        assert!(matches!(producer.as_mut().next(), ProducerState::Yielded(b) if *b == *b"pac"));
+        assert!(matches!(producer.as_mut().next(), ProducerState::Complete(Err(42))));
     }
 }

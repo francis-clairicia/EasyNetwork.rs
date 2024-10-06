@@ -268,7 +268,7 @@ mod stream {
 
             let mut inner = self.serializer.incremental_deserialize();
 
-            Box::pin(consumer::from_fn(move |buf| match inner.as_mut().consume(buf) {
+            consumer::from_fn(move |buf| match inner.as_mut().consume(buf) {
                 InputNeeded => InputNeeded,
                 Complete(result, remainder) => Complete(
                     result.map_err(ProtocolParseError::Deserialization).and_then(|dto| {
@@ -278,7 +278,7 @@ mod stream {
                     }),
                     remainder,
                 ),
-            }))
+            })
         }
     }
 

@@ -6,11 +6,11 @@ use std::{
     pin::Pin,
 };
 
-pub fn from_coroutine<T, E, G>(coroutine: G) -> FromCoroutineConsumer<G>
+pub fn from_coroutine<T, E, G>(coroutine: G) -> Pin<Box<FromCoroutineConsumer<G>>>
 where
     G: Coroutine<Vec<u8>, Yield = (), Return = Result<(T, Vec<u8>), (E, Vec<u8>)>>,
 {
-    FromCoroutineConsumer(coroutine)
+    Box::pin(FromCoroutineConsumer(coroutine))
 }
 
 pub struct FromCoroutineConsumer<G>(G);
@@ -48,7 +48,6 @@ mod tests {
 
     use super::from_coroutine;
     use std::num::NonZeroUsize;
-    use std::pin::Pin;
 
     #[test]
     fn it_works() {
@@ -72,10 +71,10 @@ mod tests {
             },
         );
 
-        assert!(matches!(Pin::new(&mut consumer).consume(b"pac"), ConsumerState::InputNeeded));
-        assert!(matches!(Pin::new(&mut consumer).consume(b"k"), ConsumerState::InputNeeded));
+        assert!(matches!(consumer.as_mut().consume(b"pac"), ConsumerState::InputNeeded));
+        assert!(matches!(consumer.as_mut().consume(b"k"), ConsumerState::InputNeeded));
         assert!(
-            matches!(Pin::new(&mut consumer).consume(b"et\n"), ConsumerState::Complete(Ok(b), r) if *b == *b"packet\n" && *r == *b"")
+            matches!(consumer.as_mut().consume(b"et\n"), ConsumerState::Complete(Ok(b), r) if *b == *b"packet\n" && *r == *b"")
         );
     }
 
@@ -101,9 +100,9 @@ mod tests {
             },
         );
 
-        assert!(matches!(Pin::new(&mut consumer).consume(b"pa"), ConsumerState::InputNeeded));
+        assert!(matches!(consumer.as_mut().consume(b"pa"), ConsumerState::InputNeeded));
         assert!(matches!(
-            Pin::new(&mut consumer).consume(b"cket"),
+            consumer.as_mut().consume(b"cket"),
             ConsumerState::Complete(Err(LimitOverrunError { .. }), _)
         ));
     }

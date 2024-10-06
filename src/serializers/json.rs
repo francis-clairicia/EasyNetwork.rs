@@ -69,13 +69,13 @@ where
         &'serializer self,
         packet: &'packet Self::SerializedPacket,
     ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
-        Box::pin(producer::from_fn_once(move || Ok(serde_json::to_vec(&packet)?.into())))
+        producer::from_fn_once(move || Ok(serde_json::to_vec(&packet)?.into()))
     }
 
     fn incremental_deserialize<'serializer>(
         &'serializer self,
     ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>> {
-        Box::pin(consumer::from_fn(move |buf| todo!()))
+        consumer::from_fn(move |buf| todo!())
     }
 }
 

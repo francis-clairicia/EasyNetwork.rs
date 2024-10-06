@@ -4,11 +4,11 @@ use std::{
     pin::Pin,
 };
 
-pub fn from_fn<'buf, E, F>(f: F) -> FromFnProducer<F>
+pub fn from_fn<'buf, E, F>(f: F) -> Pin<Box<FromFnProducer<F>>>
 where
     F: FnMut() -> ProducerState<'buf, E>,
 {
-    FromFnProducer(f)
+    Box::pin(FromFnProducer(f))
 }
 
 pub struct FromFnProducer<F>(F);
