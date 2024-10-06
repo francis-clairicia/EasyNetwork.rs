@@ -147,7 +147,7 @@ mod stream {
     use crate::serializers::{
         consumer::Consumer, producer::Producer, IncrementalPacketSerializer, IntoIncrementalPacketSerializer,
     };
-    use std::borrow::Cow;
+    use std::borrow::Borrow;
     use std::pin::Pin;
 
     pub trait StreamProtocolMethods<'sent_packet>: crate::sealed::Sealed + Send + Sync {
@@ -220,7 +220,7 @@ mod stream {
         where
             'sent_packet: 'protocol,
         {
-            self.serializer.incremental_serialize(Cow::Borrowed(packet))
+            self.serializer.incremental_serialize(packet)
         }
 
         fn build_packet_from_chunks<'protocol>(
@@ -236,7 +236,7 @@ mod stream {
         Converter: PacketConverterComposite<
             'sent_packet,
             'static,
-            SentDTOPacket: Into<Cow<'sent_packet, Serializer::SerializedPacket>>,
+            SentDTOPacket: Borrow<Serializer::SerializedPacket>,
             ReceivedDTOPacket = Serializer::DeserializedPacket,
         >,
     {
@@ -254,8 +254,11 @@ mod stream {
         where
             'sent_packet: 'protocol,
         {
-            let packet = self.converter.convert_to_dto_packet(packet);
-            self.serializer.incremental_serialize(packet.into())
+            use crate::serializers::producer;
+
+            producer::wrap(self.converter.convert_to_dto_packet(packet), |packet| {
+                self.serializer.incremental_serialize(packet.borrow())
+            })
         }
 
         fn build_packet_from_chunks<'protocol>(

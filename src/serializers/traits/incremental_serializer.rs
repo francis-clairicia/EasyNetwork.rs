@@ -1,17 +1,16 @@
-use std::borrow::Cow;
 use std::pin::Pin;
 
 use super::serializer::PacketSerializer;
 use crate::serializers::consumer::Consumer;
 use crate::serializers::producer::Producer;
 
-pub trait IncrementalPacketSerializer: PacketSerializer<SerializedPacket: ToOwned> {
+pub trait IncrementalPacketSerializer: PacketSerializer {
     type IncrementalSerializeError;
     type IncrementalDeserializeError;
 
     fn incremental_serialize<'serializer, 'packet: 'serializer>(
         &'serializer self,
-        packet: Cow<'packet, Self::SerializedPacket>,
+        packet: &'packet Self::SerializedPacket,
     ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>>;
 
     fn incremental_deserialize<'serializer>(

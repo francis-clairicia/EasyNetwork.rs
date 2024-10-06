@@ -1,6 +1,6 @@
 use crate::errors::LimitOverrunError;
 use std::{
-    borrow::{Cow, ToOwned},
+    borrow::Cow,
     convert::Infallible,
     mem::{self},
     num::NonZeroUsize,

@@ -69,19 +69,16 @@ impl<S: PacketSerializerWithSeparator> PacketSerializer for AutoSeparatedPacketS
     }
 }
 
-impl<S: PacketSerializerWithSeparator> IncrementalPacketSerializer for AutoSeparatedPacketSerializer<S>
-where
-    Self::SerializedPacket: ToOwned,
-{
+impl<S: PacketSerializerWithSeparator> IncrementalPacketSerializer for AutoSeparatedPacketSerializer<S> {
     type IncrementalSerializeError = Self::SerializeError;
     type IncrementalDeserializeError = IncrementalDeserializeError<Self::DeserializeError>;
 
     fn incremental_serialize<'serializer, 'packet: 'serializer>(
         &'serializer self,
-        packet: Cow<'packet, Self::SerializedPacket>,
+        packet: &'packet Self::SerializedPacket,
     ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
         Box::pin(producer::from_fn_once(move || {
-            self.inner.serialize(&packet).map(|mut packet| {
+            self.inner.serialize(packet).map(|mut packet| {
                 let separator = self.separator();
 
                 if !packet.ends_with(separator) {

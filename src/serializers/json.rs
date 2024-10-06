@@ -58,7 +58,7 @@ where
 
 impl<SerializedPacket, DeserializedPacket> IncrementalPacketSerializer for JSONSerializer<SerializedPacket, DeserializedPacket>
 where
-    SerializedPacket: serde::Serialize + ToOwned + ?Sized,
+    SerializedPacket: serde::Serialize + ?Sized,
     DeserializedPacket: serde::de::DeserializeOwned,
 {
     type IncrementalSerializeError = serde_json::Error;
@@ -67,7 +67,7 @@ where
 
     fn incremental_serialize<'serializer, 'packet: 'serializer>(
         &'serializer self,
-        packet: Cow<'packet, Self::SerializedPacket>,
+        packet: &'packet Self::SerializedPacket,
     ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
         Box::pin(producer::from_fn_once(move || Ok(serde_json::to_vec(&packet)?.into())))
     }
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_type_inference_with_given_types() {
-        #[derive(Clone, Serialize, Deserialize)]
+        #[derive(Serialize, Deserialize)]
         struct Test {
             value: i32,
         }

@@ -218,7 +218,7 @@ mod tests {
     fn incremental_serialize() {
         let serializer = StringLineSerializer::new().into_incremental_serializer();
 
-        let mut producer = serializer.incremental_serialize("packet".into());
+        let mut producer = serializer.incremental_serialize("packet");
 
         assert!(matches!(producer.as_mut().next(), ProducerState::Yielded(packet) if packet == b"packet\n".to_vec()));
         assert!(matches!(producer.as_mut().next(), ProducerState::Complete(Ok(()))));
@@ -228,7 +228,7 @@ mod tests {
     fn incremental_serialize_newline_already_present() {
         let serializer = StringLineSerializer::new().into_incremental_serializer();
 
-        let mut producer = serializer.incremental_serialize("packet\n".into());
+        let mut producer = serializer.incremental_serialize("packet\n");
 
         assert!(matches!(producer.as_mut().next(), ProducerState::Yielded(packet) if packet == b"packet\n".to_vec()));
         assert!(matches!(producer.as_mut().next(), ProducerState::Complete(Ok(()))));
