@@ -1,13 +1,14 @@
 use super::traits::{Producer, ProducerState};
 use std::{
+    borrow::Cow,
     fmt::{self},
     mem::{self},
     pin::Pin,
 };
 
-pub fn from_fn_once<E, F>(f: F) -> FromFnOnceProducer<F>
+pub fn from_fn_once<'buf, E, F>(f: F) -> FromFnOnceProducer<F>
 where
-    F: FnOnce() -> Result<Vec<u8>, E>,
+    F: FnOnce() -> Result<Cow<'buf, [u8]>, E>,
 {
     FromFnOnceProducer(FromFnOnceProducerState::Start(f))
 }
@@ -26,13 +27,13 @@ impl<F> fmt::Debug for FromFnOnceProducer<F> {
     }
 }
 
-impl<E, F> Producer for FromFnOnceProducer<F>
+impl<'buf, E, F> Producer<'buf> for FromFnOnceProducer<F>
 where
-    F: FnOnce() -> Result<Vec<u8>, E>,
+    F: FnOnce() -> Result<Cow<'buf, [u8]>, E>,
 {
     type Error = E;
 
-    fn next(self: Pin<&mut Self>) -> ProducerState<Self::Error> {
+    fn next(self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error> {
         let this = unsafe { self.get_unchecked_mut() };
         match mem::replace(&mut this.0, FromFnOnceProducerState::Complete) {
             FromFnOnceProducerState::Start(next_fn) => next_fn().inspect(|_| this.0 = FromFnOnceProducerState::Succeeded).into(),

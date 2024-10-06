@@ -1,5 +1,6 @@
 use super::traits::{Producer, ProducerState};
 use std::{
+    borrow::Cow,
     fmt::{self},
     ops::{Coroutine, CoroutineState},
     pin::Pin,
@@ -20,16 +21,16 @@ impl<G> fmt::Debug for FromCoroutineProducer<G> {
     }
 }
 
-impl<E, G> Producer for FromCoroutineProducer<G>
+impl<E, G> Producer<'static> for FromCoroutineProducer<G>
 where
     G: Coroutine<Yield = Vec<u8>, Return = Result<(), E>>,
 {
     type Error = E;
 
-    fn next(self: Pin<&mut Self>) -> ProducerState<Self::Error> {
+    fn next(self: Pin<&mut Self>) -> ProducerState<'static, Self::Error> {
         // SAFETY: We are not moving out of the pinned field.
         match unsafe { Pin::new_unchecked(&mut self.get_unchecked_mut().0) }.resume(()) {
-            CoroutineState::Yielded(bytes) => ProducerState::Yielded(bytes),
+            CoroutineState::Yielded(bytes) => ProducerState::Yielded(Cow::Owned(bytes)),
             CoroutineState::Complete(result) => ProducerState::Complete(result),
         }
     }

@@ -14,8 +14,8 @@ mod datagram {
     use crate::serializers::{IntoPacketSerializer, PacketSerializer};
     use std::borrow::{Borrow, Cow};
 
-    pub trait DatagramProtocolMethods<'p>: crate::sealed::Sealed {
-        type SerializedPacket;
+    pub trait DatagramProtocolMethods<'sent_packet>: crate::sealed::Sealed + Send + Sync {
+        type SerializedPacket: 'sent_packet;
         type SerializeError;
 
         type DeserializedPacket;
@@ -44,11 +44,11 @@ mod datagram {
     }
 
     impl<Serializer> DatagramProtocol<Serializer, ()> {
-        pub fn with_converter<'p, Converter>(self, converter: Converter) -> DatagramProtocol<Serializer, Converter>
+        pub fn with_converter<'packet, Converter>(self, converter: Converter) -> DatagramProtocol<Serializer, Converter>
         where
             Serializer: PacketSerializer,
-            Converter: PacketConverterComposite<'p>,
-            DatagramProtocol<Serializer, Converter>: DatagramProtocolMethods<'p>,
+            Converter: PacketConverterComposite<'packet, 'static>,
+            DatagramProtocol<Serializer, Converter>: DatagramProtocolMethods<'packet>,
         {
             DatagramProtocol {
                 serializer: self.serializer,
@@ -59,11 +59,11 @@ mod datagram {
 
     impl<Serializer, Converter> crate::sealed::Sealed for DatagramProtocol<Serializer, Converter> {}
 
-    impl<'p, Serializer> DatagramProtocolMethods<'p> for DatagramProtocol<Serializer, ()>
+    impl<'sent_packet, Serializer> DatagramProtocolMethods<'sent_packet> for DatagramProtocol<Serializer, ()>
     where
-        Serializer: PacketSerializer<SerializedPacket: 'p>,
+        Serializer: PacketSerializer<SerializedPacket: 'sent_packet>,
     {
-        type SerializedPacket = &'p Serializer::SerializedPacket;
+        type SerializedPacket = &'sent_packet Serializer::SerializedPacket;
         type SerializeError = Serializer::SerializeError;
 
         type DeserializedPacket = Serializer::DeserializedPacket;
@@ -78,11 +78,12 @@ mod datagram {
         }
     }
 
-    impl<'p, Serializer, Converter> DatagramProtocolMethods<'p> for DatagramProtocol<Serializer, Converter>
+    impl<'sent_packet, Serializer, Converter> DatagramProtocolMethods<'sent_packet> for DatagramProtocol<Serializer, Converter>
     where
-        Serializer: PacketSerializer<SerializedPacket: 'p>,
+        Serializer: PacketSerializer<SerializedPacket: 'sent_packet>,
         Converter: PacketConverterComposite<
-            'p,
+            'sent_packet,
+            'static,
             SentDTOPacket: Borrow<Serializer::SerializedPacket>,
             ReceivedDTOPacket = Serializer::DeserializedPacket,
         >,
@@ -117,11 +118,11 @@ mod datagram {
         }
     }
 
-    impl<'p, Serializer: Default, Converter: Default> Default for DatagramProtocol<Serializer, Converter>
+    impl<'sent_packet, Serializer: Default, Converter: Default> Default for DatagramProtocol<Serializer, Converter>
     where
         Serializer: PacketSerializer,
-        Converter: PacketConverterComposite<'p>,
-        Self: DatagramProtocolMethods<'p>,
+        Converter: PacketConverterComposite<'sent_packet, 'static>,
+        Self: DatagramProtocolMethods<'sent_packet>,
     {
         #[inline]
         fn default() -> Self {
@@ -149,19 +150,23 @@ mod stream {
     use std::borrow::Cow;
     use std::pin::Pin;
 
-    pub trait StreamProtocolMethods<'p>: crate::sealed::Sealed {
-        type SerializedPacket;
+    pub trait StreamProtocolMethods<'sent_packet>: crate::sealed::Sealed + Send + Sync {
+        type SerializedPacket: 'sent_packet;
         type SerializeError;
 
         type DeserializedPacket;
         type DeserializeError;
 
-        fn generate_chunks(&'p self, packet: Self::SerializedPacket)
-            -> Pin<Box<dyn Producer<Error = Self::SerializeError> + 'p>>;
+        fn generate_chunks<'protocol>(
+            &'protocol self,
+            packet: Self::SerializedPacket,
+        ) -> Pin<Box<dyn Producer<'sent_packet, Error = Self::SerializeError> + 'protocol>>
+        where
+            'sent_packet: 'protocol;
 
-        fn build_packet_from_chunks(
-            &'p self,
-        ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::DeserializeError> + 'p>>;
+        fn build_packet_from_chunks<'protocol>(
+            &'protocol self,
+        ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::DeserializeError> + 'protocol>>;
     }
 
     #[derive(Debug)]
@@ -172,7 +177,7 @@ mod stream {
 
     impl<Serializer> StreamProtocol<Serializer, ()>
     where
-        Serializer: IncrementalPacketSerializer<SerializedPacket: ToOwned>,
+        Serializer: IncrementalPacketSerializer,
     {
         pub fn new(serializer: Serializer) -> Self {
             Self {
@@ -183,11 +188,11 @@ mod stream {
     }
 
     impl<Serializer> StreamProtocol<Serializer, ()> {
-        pub fn with_converter<'p, Converter>(self, converter: Converter) -> StreamProtocol<Serializer, Converter>
+        pub fn with_converter<'sent_packet, Converter>(self, converter: Converter) -> StreamProtocol<Serializer, Converter>
         where
-            Serializer: IncrementalPacketSerializer<SerializedPacket: ToOwned>,
-            Converter: PacketConverterComposite<'p>,
-            StreamProtocol<Serializer, Converter>: StreamProtocolMethods<'p>,
+            Serializer: IncrementalPacketSerializer,
+            Converter: PacketConverterComposite<'sent_packet, 'static>,
+            StreamProtocol<Serializer, Converter>: StreamProtocolMethods<'sent_packet>,
         {
             StreamProtocol {
                 serializer: self.serializer,
@@ -198,36 +203,40 @@ mod stream {
 
     impl<Serializer, Converter> crate::sealed::Sealed for StreamProtocol<Serializer, Converter> {}
 
-    impl<'p, Serializer> StreamProtocolMethods<'p> for StreamProtocol<Serializer, ()>
+    impl<'sent_packet, Serializer> StreamProtocolMethods<'sent_packet> for StreamProtocol<Serializer, ()>
     where
-        Serializer: IncrementalPacketSerializer<SerializedPacket: ToOwned + 'p>,
+        Serializer: IncrementalPacketSerializer<SerializedPacket: 'sent_packet>,
     {
-        type SerializedPacket = &'p Serializer::SerializedPacket;
+        type SerializedPacket = &'sent_packet Serializer::SerializedPacket;
         type SerializeError = Serializer::IncrementalSerializeError;
 
         type DeserializedPacket = Serializer::DeserializedPacket;
         type DeserializeError = Serializer::IncrementalDeserializeError;
 
-        fn generate_chunks(
-            &'p self,
+        fn generate_chunks<'protocol>(
+            &'protocol self,
             packet: Self::SerializedPacket,
-        ) -> Pin<Box<dyn Producer<Error = Self::SerializeError> + 'p>> {
+        ) -> Pin<Box<dyn Producer<'sent_packet, Error = Self::SerializeError> + 'protocol>>
+        where
+            'sent_packet: 'protocol,
+        {
             self.serializer.incremental_serialize(Cow::Borrowed(packet))
         }
 
-        fn build_packet_from_chunks(
-            &'p self,
-        ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::DeserializeError> + 'p>> {
+        fn build_packet_from_chunks<'protocol>(
+            &'protocol self,
+        ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::DeserializeError> + 'protocol>> {
             self.serializer.incremental_deserialize()
         }
     }
 
-    impl<'p, Serializer, Converter> StreamProtocolMethods<'p> for StreamProtocol<Serializer, Converter>
+    impl<'sent_packet, Serializer, Converter> StreamProtocolMethods<'sent_packet> for StreamProtocol<Serializer, Converter>
     where
-        Serializer: IncrementalPacketSerializer<SerializedPacket: ToOwned + 'p>,
+        Serializer: IncrementalPacketSerializer<SerializedPacket: 'sent_packet>,
         Converter: PacketConverterComposite<
-            'p,
-            SentDTOPacket: Into<Cow<'p, Serializer::SerializedPacket>>,
+            'sent_packet,
+            'static,
+            SentDTOPacket: Into<Cow<'sent_packet, Serializer::SerializedPacket>>,
             ReceivedDTOPacket = Serializer::DeserializedPacket,
         >,
     {
@@ -238,17 +247,20 @@ mod stream {
         type DeserializeError =
             ProtocolParseError<Serializer::IncrementalDeserializeError, Converter::ReceivedPacketConversionError>;
 
-        fn generate_chunks(
-            &'p self,
+        fn generate_chunks<'protocol>(
+            &'protocol self,
             packet: Self::SerializedPacket,
-        ) -> Pin<Box<dyn Producer<Error = Self::SerializeError> + 'p>> {
+        ) -> Pin<Box<dyn Producer<'sent_packet, Error = Self::SerializeError> + 'protocol>>
+        where
+            'sent_packet: 'protocol,
+        {
             let packet = self.converter.convert_to_dto_packet(packet);
             self.serializer.incremental_serialize(packet.into())
         }
 
-        fn build_packet_from_chunks(
-            &'p self,
-        ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::DeserializeError> + 'p>> {
+        fn build_packet_from_chunks<'protocol>(
+            &'protocol self,
+        ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::DeserializeError> + 'protocol>> {
             use crate::serializers::consumer::{self, ConsumerState::*};
 
             let mut inner = self.serializer.incremental_deserialize();
@@ -267,18 +279,18 @@ mod stream {
         }
     }
 
-    impl<Serializer: IncrementalPacketSerializer<SerializedPacket: ToOwned> + Default> Default for StreamProtocol<Serializer, ()> {
+    impl<Serializer: IncrementalPacketSerializer + Default> Default for StreamProtocol<Serializer, ()> {
         #[inline]
         fn default() -> Self {
             Self::new(Serializer::default())
         }
     }
 
-    impl<'p, Serializer: Default, Converter: Default> Default for StreamProtocol<Serializer, Converter>
+    impl<'sent_packet, Serializer: Default, Converter: Default> Default for StreamProtocol<Serializer, Converter>
     where
-        Serializer: IncrementalPacketSerializer<SerializedPacket: ToOwned>,
-        Converter: PacketConverterComposite<'p>,
-        StreamProtocol<Serializer, Converter>: StreamProtocolMethods<'p>,
+        Serializer: IncrementalPacketSerializer,
+        Converter: PacketConverterComposite<'sent_packet, 'static>,
+        StreamProtocol<Serializer, Converter>: StreamProtocolMethods<'sent_packet>,
     {
         #[inline]
         fn default() -> Self {
@@ -299,6 +311,8 @@ mod stream {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use super::{DatagramProtocol, DatagramProtocolMethods, StreamProtocol, StreamProtocolMethods};
     use crate::converters::testing_tools::NoopConverter;
     use crate::serializers::testing_tools::NoopSerializer;
@@ -337,13 +351,30 @@ mod tests {
     }
 
     #[test]
-    fn test_stream_protocol_new_with_converter() {
+    fn test_stream_protocol_new_with_converter_as_owned() {
         let protocol = StreamProtocol::from(NoopSerializer).with_converter(NoopConverter::default());
 
         {
             let data = b"packet".to_vec();
             let mut producer = protocol.generate_chunks(data);
             assert!(matches!(producer.as_mut().next(), ProducerState::Yielded(b) if *b == *b"packet"));
+            assert!(matches!(producer.as_mut().next(), ProducerState::Complete(Ok(()))));
+        }
+        {
+            let mut consumer = protocol.build_packet_from_chunks();
+            assert!(matches!(consumer.as_mut().consume(b"packet"), ConsumerState::Complete(Ok(b), _) if *b == *b"packet"));
+        }
+    }
+
+    #[test]
+    fn test_stream_protocol_new_with_converter_as_ref() {
+        let protocol = StreamProtocol::from(NoopSerializer).with_converter(NoopConverter::default());
+        let data = b"packet".to_vec();
+
+        {
+            let data = &data[..];
+            let mut producer = protocol.generate_chunks(data);
+            assert!(matches!(producer.as_mut().next(), ProducerState::Yielded(Cow::Borrowed(b)) if std::ptr::addr_eq(b, data)));
             assert!(matches!(producer.as_mut().next(), ProducerState::Complete(Ok(()))));
         }
         {

@@ -1,6 +1,7 @@
 use super::traits::{Producer, ProducerState};
-use std::{convert::Infallible, pin::Pin};
+use std::borrow::Cow;
 use std::fmt;
+use std::{convert::Infallible, pin::Pin};
 
 pub fn from_iter<I>(iterable: impl IntoIterator<Item = I::Item, IntoIter = I>) -> FromIterProducer<I>
 where
@@ -17,13 +18,13 @@ impl<F> fmt::Debug for FromIterProducer<F> {
     }
 }
 
-impl<I: Iterator<Item = Vec<u8>>> Producer for FromIterProducer<I> {
+impl<I: Iterator<Item = Vec<u8>>> Producer<'static> for FromIterProducer<I> {
     type Error = Infallible;
 
-    fn next(self: Pin<&mut Self>) -> ProducerState<Self::Error> {
+    fn next(self: Pin<&mut Self>) -> ProducerState<'static, Self::Error> {
         // SAFETY: We are not moving out of the pinned field.
         match (unsafe { &mut self.get_unchecked_mut().0 }).next() {
-            Some(bytes) => ProducerState::Yielded(bytes),
+            Some(bytes) => ProducerState::Yielded(Cow::Owned(bytes)),
             None => ProducerState::Complete(Ok(())),
         }
     }

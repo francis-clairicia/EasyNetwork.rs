@@ -5,11 +5,12 @@ use super::{
     producer::{self, Producer},
     IncrementalPacketSerializer, PacketSerializer,
 };
-use std::marker::PhantomData;
+use std::{borrow::Cow, marker::PhantomData, pin::Pin};
 
 #[derive(Debug)]
 pub struct JSONSerializer<SerializedPacket: ?Sized = serde_json::Value, DeserializedPacket = serde_json::Value> {
-    _marker: crate::PhantomDataWithSend<(Box<SerializedPacket>, Box<DeserializedPacket>)>,
+    _ser: PhantomData<fn() -> PhantomData<SerializedPacket>>,
+    _de: PhantomData<fn() -> PhantomData<DeserializedPacket>>,
 }
 
 impl<SerializedPacket, DeserializedPacket> JSONSerializer<SerializedPacket, DeserializedPacket>
@@ -18,7 +19,10 @@ where
     DeserializedPacket: serde::de::DeserializeOwned,
 {
     pub fn new() -> Self {
-        Self { _marker: PhantomData }
+        Self {
+            _ser: PhantomData,
+            _de: PhantomData,
+        }
     }
 }
 
@@ -47,7 +51,7 @@ where
         serde_json::to_vec(packet)
     }
 
-    fn deserialize(&self, data: std::borrow::Cow<'_, [u8]>) -> Result<Self::DeserializedPacket, Self::DeserializeError> {
+    fn deserialize(&self, data: Cow<'_, [u8]>) -> Result<Self::DeserializedPacket, Self::DeserializeError> {
         serde_json::from_slice(&data)
     }
 }
@@ -61,16 +65,16 @@ where
 
     type IncrementalDeserializeError = serde_json::Error;
 
-    fn incremental_serialize<'s>(
-        &'s self,
-        packet: std::borrow::Cow<'s, Self::SerializedPacket>,
-    ) -> std::pin::Pin<Box<dyn Producer<Error = Self::IncrementalSerializeError> + 's>> {
-        Box::pin(producer::from_fn_once(move || serde_json::to_vec(&packet)))
+    fn incremental_serialize<'serializer, 'packet: 'serializer>(
+        &'serializer self,
+        packet: Cow<'packet, Self::SerializedPacket>,
+    ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
+        Box::pin(producer::from_fn_once(move || Ok(serde_json::to_vec(&packet)?.into())))
     }
 
-    fn incremental_deserialize<'s>(
-        &'s self,
-    ) -> std::pin::Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 's>> {
+    fn incremental_deserialize<'serializer>(
+        &'serializer self,
+    ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>> {
         Box::pin(consumer::from_fn(move |buf| todo!()))
     }
 }
@@ -84,10 +88,8 @@ mod tests {
 
     #[test]
     fn test_type_inference_with_default_types() {
-        let serializer: JSONSerializer = Default::default();
-
-        assert_is_serializer(&serializer);
-        assert_is_incremental_serializer(&serializer);
+        assert_is_serializer::<JSONSerializer>();
+        assert_is_incremental_serializer::<JSONSerializer>();
     }
 
     #[test]
@@ -97,9 +99,7 @@ mod tests {
             value: i32,
         }
 
-        let serializer: JSONSerializer<Test, Test> = Default::default();
-
-        assert_is_serializer(&serializer);
-        assert_is_incremental_serializer(&serializer);
+        assert_is_serializer::<JSONSerializer<Test, Test>>();
+        assert_is_incremental_serializer::<JSONSerializer<Test, Test>>();
     }
 }

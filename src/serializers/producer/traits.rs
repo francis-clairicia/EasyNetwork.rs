@@ -1,25 +1,25 @@
-use std::pin::Pin;
+use std::{borrow::Cow, pin::Pin};
 
-pub enum ProducerState<E> {
-    Yielded(Vec<u8>),
+pub enum ProducerState<'buf, E> {
+    Yielded(Cow<'buf, [u8]>),
     Complete(Result<(), E>),
 }
 
-pub trait Producer {
+pub trait Producer<'buf> {
     type Error;
 
-    fn next(self: Pin<&mut Self>) -> ProducerState<Self::Error>;
+    fn next(self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error>;
 }
 
-impl<E> ProducerState<E> {
-    pub fn map<O: FnOnce(Vec<u8>) -> Vec<u8>>(self, op: O) -> ProducerState<E> {
+impl<'buf, E> ProducerState<'buf, E> {
+    pub fn map<O: FnOnce(Cow<'buf, [u8]>) -> Cow<'buf, [u8]>>(self, op: O) -> ProducerState<'buf, E> {
         match self {
             ProducerState::Complete(result) => ProducerState::Complete(result),
             ProducerState::Yielded(bytes) => ProducerState::Yielded(op(bytes)),
         }
     }
 
-    pub fn map_err<F, O: FnOnce(E) -> F>(self, op: O) -> ProducerState<F> {
+    pub fn map_err<F, O: FnOnce(E) -> F>(self, op: O) -> ProducerState<'buf, F> {
         match self {
             ProducerState::Complete(result) => ProducerState::Complete(result.map_err(op)),
             ProducerState::Yielded(bytes) => ProducerState::Yielded(bytes),
@@ -27,9 +27,19 @@ impl<E> ProducerState<E> {
     }
 }
 
-impl<E> From<Result<Vec<u8>, E>> for ProducerState<E> {
+impl<'buf, E> From<Result<Vec<u8>, E>> for ProducerState<'buf, E> {
     #[inline]
     fn from(result: Result<Vec<u8>, E>) -> Self {
+        match result {
+            Ok(bytes) => ProducerState::Yielded(Cow::Owned(bytes)),
+            Err(e) => ProducerState::Complete(Err(e)),
+        }
+    }
+}
+
+impl<'buf, E> From<Result<Cow<'buf, [u8]>, E>> for ProducerState<'buf, E> {
+    #[inline]
+    fn from(result: Result<Cow<'buf, [u8]>, E>) -> Self {
         match result {
             Ok(bytes) => ProducerState::Yielded(bytes),
             Err(e) => ProducerState::Complete(Err(e)),
@@ -37,34 +47,34 @@ impl<E> From<Result<Vec<u8>, E>> for ProducerState<E> {
     }
 }
 
-impl<P: ?Sized + Producer> Producer for Pin<&mut P> {
+impl<'buf, P: ?Sized + Producer<'buf>> Producer<'buf> for Pin<&mut P> {
     type Error = P::Error;
 
-    fn next(mut self: Pin<&mut Self>) -> ProducerState<Self::Error> {
+    fn next(mut self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error> {
         P::next((*self).as_mut())
     }
 }
 
-impl<P: ?Sized + Producer + Unpin> Producer for &mut P {
+impl<'buf, P: ?Sized + Producer<'buf> + Unpin> Producer<'buf> for &mut P {
     type Error = P::Error;
 
-    fn next(mut self: Pin<&mut Self>) -> ProducerState<Self::Error> {
+    fn next(mut self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error> {
         P::next(Pin::new(&mut *self))
     }
 }
 
-impl<P: ?Sized + Producer> Producer for Pin<Box<P>> {
+impl<'buf, P: ?Sized + Producer<'buf>> Producer<'buf> for Pin<Box<P>> {
     type Error = P::Error;
 
-    fn next(mut self: Pin<&mut Self>) -> ProducerState<Self::Error> {
+    fn next(mut self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error> {
         P::next((*self).as_mut())
     }
 }
 
-impl<P: ?Sized + Producer + Unpin> Producer for Box<P> {
+impl<'buf, P: ?Sized + Producer<'buf> + Unpin> Producer<'buf> for Box<P> {
     type Error = P::Error;
 
-    fn next(mut self: Pin<&mut Self>) -> ProducerState<Self::Error> {
+    fn next(mut self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error> {
         P::next(Pin::new(&mut *self))
     }
 }

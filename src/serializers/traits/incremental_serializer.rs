@@ -5,30 +5,27 @@ use super::serializer::PacketSerializer;
 use crate::serializers::consumer::Consumer;
 use crate::serializers::producer::Producer;
 
-pub trait IncrementalPacketSerializer: PacketSerializer
-where
-    <Self as PacketSerializer>::SerializedPacket: ToOwned,
-{
+pub trait IncrementalPacketSerializer: PacketSerializer<SerializedPacket: ToOwned> {
     type IncrementalSerializeError;
     type IncrementalDeserializeError;
 
-    fn incremental_serialize<'s>(
-        &'s self,
-        packet: Cow<'s, Self::SerializedPacket>,
-    ) -> Pin<Box<dyn Producer<Error = Self::IncrementalSerializeError> + 's>>;
+    fn incremental_serialize<'serializer, 'packet: 'serializer>(
+        &'serializer self,
+        packet: Cow<'packet, Self::SerializedPacket>,
+    ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>>;
 
-    fn incremental_deserialize<'s>(
-        &'s self,
-    ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 's>>;
+    fn incremental_deserialize<'serializer>(
+        &'serializer self,
+    ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>>;
 }
 
 pub trait IntoIncrementalPacketSerializer {
-    type IntoIncrementalSerializer: IncrementalPacketSerializer<SerializedPacket: ToOwned>;
+    type IntoIncrementalSerializer: IncrementalPacketSerializer;
 
     fn into_incremental_serializer(self) -> Self::IntoIncrementalSerializer;
 }
 
-impl<S: IncrementalPacketSerializer<SerializedPacket: ToOwned>> IntoIncrementalPacketSerializer for S {
+impl<S: IncrementalPacketSerializer> IntoIncrementalPacketSerializer for S {
     type IntoIncrementalSerializer = Self;
 
     fn into_incremental_serializer(self) -> Self {

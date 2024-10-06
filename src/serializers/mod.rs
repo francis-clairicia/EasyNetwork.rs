@@ -22,9 +22,9 @@ pub(crate) mod testing_tools {
     };
     use std::{borrow::Cow, convert::Infallible, pin::Pin};
 
-    pub fn assert_is_serializer(_: &impl PacketSerializer) {}
+    pub fn assert_is_serializer<T: PacketSerializer>() {}
 
-    pub fn assert_is_incremental_serializer(_: &impl IncrementalPacketSerializer<SerializedPacket: ToOwned>) {}
+    pub fn assert_is_incremental_serializer<T: IncrementalPacketSerializer>() {}
 
     pub struct NoopSerializer;
 
@@ -54,16 +54,17 @@ pub(crate) mod testing_tools {
         type IncrementalSerializeError = Infallible;
         type IncrementalDeserializeError = Infallible;
 
-        fn incremental_serialize<'s>(
-            &'s self,
-            packet: Cow<'s, Self::SerializedPacket>,
-        ) -> Pin<Box<dyn Producer<Error = Self::IncrementalSerializeError> + 's>> {
-            Box::pin(producer::from_fn_once(move || Ok(packet.into_owned())))
+        fn incremental_serialize<'serializer, 'packet: 'serializer>(
+            &'serializer self,
+            packet: Cow<'packet, Self::SerializedPacket>,
+        ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
+            Box::pin(producer::from_fn_once(move || Ok(packet)))
         }
 
-        fn incremental_deserialize<'s>(
-            &'s self,
-        ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 's>> {
+        fn incremental_deserialize<'serializer>(
+            &'serializer self,
+        ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>>
+        {
             Box::pin(consumer::from_fn(move |buf| ConsumerState::Complete(Ok(buf.to_vec()), Default::default())))
         }
     }

@@ -76,10 +76,10 @@ where
     type IncrementalSerializeError = Self::SerializeError;
     type IncrementalDeserializeError = IncrementalDeserializeError<Self::DeserializeError>;
 
-    fn incremental_serialize<'s>(
-        &'s self,
-        packet: Cow<'s, Self::SerializedPacket>,
-    ) -> Pin<Box<dyn Producer<Error = Self::IncrementalSerializeError> + 's>> {
+    fn incremental_serialize<'serializer, 'packet: 'serializer>(
+        &'serializer self,
+        packet: Cow<'packet, Self::SerializedPacket>,
+    ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
         Box::pin(producer::from_fn_once(move || {
             self.inner.serialize(&packet).map(|mut packet| {
                 let separator = self.separator();
@@ -87,14 +87,14 @@ where
                 if !packet.ends_with(separator) {
                     packet.extend_from_slice(separator);
                 }
-                packet
+                Cow::Owned(packet)
             })
         }))
     }
 
-    fn incremental_deserialize<'s>(
-        &'s self,
-    ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 's>> {
+    fn incremental_deserialize<'serializer>(
+        &'serializer self,
+    ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>> {
         let mut reader = BufferedStreamReader::new();
 
         Box::pin(consumer::from_fn(move |buf| {

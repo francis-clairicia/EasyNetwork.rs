@@ -14,6 +14,3 @@ mod constants;
 pub(crate) mod sealed {
     pub trait Sealed {}
 }
-
-#[allow(type_alias_bounds, dead_code)]
-pub(crate) type PhantomDataWithSend<T: ?Sized> = ::std::marker::PhantomData<fn() -> Box<T>>;

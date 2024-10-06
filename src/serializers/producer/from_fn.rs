@@ -4,9 +4,9 @@ use std::{
     pin::Pin,
 };
 
-pub fn from_fn<E, F>(f: F) -> FromFnProducer<F>
+pub fn from_fn<'buf, E, F>(f: F) -> FromFnProducer<F>
 where
-    F: FnMut() -> ProducerState<E>,
+    F: FnMut() -> ProducerState<'buf, E>,
 {
     FromFnProducer(f)
 }
@@ -19,13 +19,13 @@ impl<F> fmt::Debug for FromFnProducer<F> {
     }
 }
 
-impl<E, F> Producer for FromFnProducer<F>
+impl<'buf, E, F> Producer<'buf> for FromFnProducer<F>
 where
-    F: FnMut() -> ProducerState<E>,
+    F: FnMut() -> ProducerState<'buf, E>,
 {
     type Error = E;
 
-    fn next(self: Pin<&mut Self>) -> ProducerState<Self::Error> {
+    fn next(self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error> {
         // SAFETY: We are not moving out of the pinned field.
         (unsafe { &mut self.get_unchecked_mut().0 })()
     }
