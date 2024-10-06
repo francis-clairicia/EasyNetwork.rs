@@ -4,9 +4,9 @@ use std::{
     pin::Pin,
 };
 
-pub fn from_fn<'buf, E, F>(f: F) -> Pin<Box<FromFnProducer<F>>>
+pub fn from_fn<'buf, F>(f: F) -> Pin<Box<FromFnProducer<F>>>
 where
-    F: FnMut() -> ProducerState<'buf, E>,
+    FromFnProducer<F>: Producer<'buf>,
 {
     Box::pin(FromFnProducer(f))
 }

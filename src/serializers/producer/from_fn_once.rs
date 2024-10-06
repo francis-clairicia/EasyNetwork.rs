@@ -6,9 +6,9 @@ use std::{
     pin::Pin,
 };
 
-pub fn from_fn_once<'buf, E, F>(f: F) -> Pin<Box<FromFnOnceProducer<F>>>
+pub fn from_fn_once<'buf, F>(f: F) -> Pin<Box<FromFnOnceProducer<F>>>
 where
-    F: FnOnce() -> Result<Cow<'buf, [u8]>, E>,
+    FromFnOnceProducer<F>: Producer<'buf>,
 {
     Box::pin(FromFnOnceProducer(FromFnOnceProducerState::Start(f)))
 }

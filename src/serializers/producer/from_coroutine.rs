@@ -6,9 +6,9 @@ use std::{
     pin::Pin,
 };
 
-pub fn from_coroutine<E, G>(coroutine: G) -> Pin<Box<FromCoroutineProducer<G>>>
+pub fn from_coroutine<G>(coroutine: G) -> Pin<Box<FromCoroutineProducer<G>>>
 where
-    G: Coroutine<Yield = Vec<u8>, Return = Result<(), E>>,
+    FromCoroutineProducer<G>: Producer<'static>,
 {
     Box::pin(FromCoroutineProducer(coroutine))
 }
