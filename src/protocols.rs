@@ -2,13 +2,19 @@ pub use datagram::{DatagramProtocol, DatagramProtocolMethods};
 pub use stream::{StreamProtocol, StreamProtocolMethods};
 
 #[derive(Debug)]
+pub enum ProtocolSerializeError<SerializeError, ConversionError> {
+    Serialization(SerializeError),
+    Conversion(ConversionError),
+}
+
+#[derive(Debug)]
 pub enum ProtocolParseError<DeserializeError, ConversionError> {
     Deserialization(DeserializeError),
     Conversion(ConversionError),
 }
 
 mod datagram {
-    use super::ProtocolParseError;
+    use super::{ProtocolParseError, ProtocolSerializeError};
 
     use crate::converters::PacketConverterComposite;
     use crate::serializers::{IntoPacketSerializer, PacketSerializer};
@@ -89,14 +95,20 @@ mod datagram {
         >,
     {
         type SerializedPacket = Converter::SentBusinessPacket;
-        type SerializeError = Serializer::SerializeError;
+        type SerializeError = ProtocolSerializeError<Serializer::SerializeError, Converter::SentPacketConversionError>;
 
         type DeserializedPacket = Converter::ReceivedBusinessPacket;
         type DeserializeError = ProtocolParseError<Serializer::DeserializeError, Converter::ReceivedPacketConversionError>;
 
         fn make_datagram(&self, packet: Self::SerializedPacket) -> Result<Vec<u8>, Self::SerializeError> {
-            let packet = self.converter.convert_to_dto_packet(packet);
-            self.serializer.serialize(packet.borrow())
+            self.converter
+                .convert_to_dto_packet(packet)
+                .map_err(ProtocolSerializeError::Conversion)
+                .and_then(|packet| {
+                    self.serializer
+                        .serialize(packet.borrow())
+                        .map_err(ProtocolSerializeError::Serialization)
+                })
         }
 
         fn build_packet_from_datagram(&self, data: Cow<'_, [u8]>) -> Result<Self::DeserializedPacket, Self::DeserializeError> {
@@ -142,7 +154,7 @@ mod datagram {
 }
 
 mod stream {
-    use super::ProtocolParseError;
+    use super::{ProtocolParseError, ProtocolSerializeError};
     use crate::converters::PacketConverterComposite;
     use crate::serializers::{
         consumer::Consumer, producer::Producer, IncrementalPacketSerializer, IntoIncrementalPacketSerializer,
@@ -241,7 +253,7 @@ mod stream {
         >,
     {
         type SerializedPacket = Converter::SentBusinessPacket;
-        type SerializeError = Serializer::IncrementalSerializeError;
+        type SerializeError = ProtocolSerializeError<Serializer::IncrementalSerializeError, Converter::SentPacketConversionError>;
 
         type DeserializedPacket = Converter::ReceivedBusinessPacket;
         type DeserializeError =
@@ -256,28 +268,31 @@ mod stream {
         {
             use crate::serializers::producer;
 
-            producer::wrap(self.converter.convert_to_dto_packet(packet), |packet| {
-                self.serializer.incremental_serialize(packet.borrow())
+            producer::lazy(move || {
+                self.converter
+                    .convert_to_dto_packet(packet)
+                    .map_err(ProtocolSerializeError::Conversion)
+                    .map(|packet| {
+                        let inner = producer::wrap(packet, |packet| self.serializer.incremental_serialize(packet.borrow()));
+
+                        producer::map(inner, |result| result.map_err(ProtocolSerializeError::Serialization))
+                    })
             })
         }
 
         fn build_packet_from_chunks<'protocol>(
             &'protocol self,
         ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::DeserializeError> + 'protocol>> {
-            use crate::serializers::consumer::{self, ConsumerState::*};
+            use crate::serializers::consumer;
 
-            let mut inner = self.serializer.incremental_deserialize();
+            let inner = self.serializer.incremental_deserialize();
 
-            consumer::from_fn(move |buf| match inner.as_mut().consume(buf) {
-                InputNeeded => InputNeeded,
-                Complete(result, remainder) => Complete(
-                    result.map_err(ProtocolParseError::Deserialization).and_then(|dto| {
-                        self.converter
-                            .create_from_dto_packet(dto)
-                            .map_err(ProtocolParseError::Conversion)
-                    }),
-                    remainder,
-                ),
+            consumer::map(inner, |result| {
+                result.map_err(ProtocolParseError::Deserialization).and_then(|dto| {
+                    self.converter
+                        .create_from_dto_packet(dto)
+                        .map_err(ProtocolParseError::Conversion)
+                })
             })
         }
     }

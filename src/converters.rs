@@ -3,9 +3,13 @@ pub trait PacketConverterComposite<'sent_packet, 'received_packet>: Send + Sync 
     type ReceivedBusinessPacket: 'received_packet;
     type SentDTOPacket: 'sent_packet;
     type ReceivedDTOPacket: 'received_packet;
+    type SentPacketConversionError;
     type ReceivedPacketConversionError;
 
-    fn convert_to_dto_packet(&self, packet: Self::SentBusinessPacket) -> Self::SentDTOPacket;
+    fn convert_to_dto_packet(
+        &self,
+        packet: Self::SentBusinessPacket,
+    ) -> Result<Self::SentDTOPacket, Self::SentPacketConversionError>;
 
     fn create_from_dto_packet(
         &self,
@@ -16,11 +20,15 @@ pub trait PacketConverterComposite<'sent_packet, 'received_packet>: Send + Sync 
 pub trait PacketConverter<'packet>: Send + Sync {
     type BusinessPacket: 'packet;
     type DTOPacket: 'packet;
-    type PacketConversionError;
+    type SentPacketConversionError;
+    type ReceivedPacketConversionError;
 
-    fn convert_to_dto_packet(&self, packet: Self::BusinessPacket) -> Self::DTOPacket;
+    fn convert_to_dto_packet(&self, packet: Self::BusinessPacket) -> Result<Self::DTOPacket, Self::SentPacketConversionError>;
 
-    fn create_from_dto_packet(&self, packet: Self::DTOPacket) -> Result<Self::BusinessPacket, Self::PacketConversionError>;
+    fn create_from_dto_packet(
+        &self,
+        packet: Self::DTOPacket,
+    ) -> Result<Self::BusinessPacket, Self::ReceivedPacketConversionError>;
 }
 
 impl<'packet, C: PacketConverter<'packet>> PacketConverterComposite<'packet, 'packet> for C {
@@ -28,10 +36,14 @@ impl<'packet, C: PacketConverter<'packet>> PacketConverterComposite<'packet, 'pa
     type ReceivedBusinessPacket = <C as PacketConverter<'packet>>::BusinessPacket;
     type SentDTOPacket = <C as PacketConverter<'packet>>::DTOPacket;
     type ReceivedDTOPacket = <C as PacketConverter<'packet>>::DTOPacket;
-    type ReceivedPacketConversionError = <C as PacketConverter<'packet>>::PacketConversionError;
+    type SentPacketConversionError = <C as PacketConverter<'packet>>::SentPacketConversionError;
+    type ReceivedPacketConversionError = <C as PacketConverter<'packet>>::ReceivedPacketConversionError;
 
     #[inline]
-    fn convert_to_dto_packet(&self, packet: Self::SentBusinessPacket) -> Self::SentDTOPacket {
+    fn convert_to_dto_packet(
+        &self,
+        packet: Self::SentBusinessPacket,
+    ) -> Result<Self::SentDTOPacket, Self::SentPacketConversionError> {
         PacketConverter::convert_to_dto_packet(self, packet)
     }
 
@@ -76,10 +88,14 @@ pub(crate) mod testing_tools {
         type ReceivedBusinessPacket = ReceivedPacket;
         type SentDTOPacket = SentPacket;
         type ReceivedDTOPacket = ReceivedPacket;
+        type SentPacketConversionError = Infallible;
         type ReceivedPacketConversionError = Infallible;
 
-        fn convert_to_dto_packet(&self, packet: Self::SentBusinessPacket) -> Self::SentDTOPacket {
-            packet
+        fn convert_to_dto_packet(
+            &self,
+            packet: Self::SentBusinessPacket,
+        ) -> Result<Self::SentDTOPacket, Self::SentPacketConversionError> {
+            Ok(packet)
         }
 
         fn create_from_dto_packet(
