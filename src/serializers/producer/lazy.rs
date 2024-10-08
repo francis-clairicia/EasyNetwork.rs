@@ -1,19 +1,17 @@
 use super::traits::{Producer, ProducerState};
 use std::{
     fmt::{self},
-    marker::PhantomData,
     pin::Pin,
 };
 
-pub fn lazy<'packet, Initializer, WrappedProducer: ?Sized, Error>(
+pub fn lazy<'packet, Initializer, WrappedProducer: ?Sized>(
     initializer: Initializer,
-) -> Pin<Box<LazyProducer<Initializer, WrappedProducer, Error>>>
+) -> Pin<Box<LazyProducer<Initializer, WrappedProducer>>>
 where
-    LazyProducer<Initializer, WrappedProducer, Error>: Producer<'packet>,
+    LazyProducer<Initializer, WrappedProducer>: Producer<'packet>,
 {
     Box::pin(LazyProducer {
         state: LazyProducerState::Initialization(initializer),
-        _marker: PhantomData,
     })
 }
 
@@ -23,23 +21,21 @@ enum LazyProducerState<Initializer, WrappedProducer: ?Sized> {
     Complete,
 }
 
-pub struct LazyProducer<Initializer, WrappedProducer: ?Sized, Error> {
+pub struct LazyProducer<Initializer, WrappedProducer: ?Sized> {
     state: LazyProducerState<Initializer, WrappedProducer>,
-    _marker: PhantomData<Error>,
 }
 
-impl<Initializer, WrappedProducer: ?Sized, Error> fmt::Debug for LazyProducer<Initializer, WrappedProducer, Error> {
+impl<Initializer, WrappedProducer: ?Sized> fmt::Debug for LazyProducer<Initializer, WrappedProducer> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("LazyProducer").finish()
     }
 }
 
-impl<'packet, 'producer, Initializer, WrappedProducer, Error> Producer<'packet>
-    for LazyProducer<Initializer, WrappedProducer, Error>
+impl<'packet, 'producer, Initializer, WrappedProducer, Error> Producer<'packet> for LazyProducer<Initializer, WrappedProducer>
 where
     'packet: 'producer,
     WrappedProducer: ?Sized + Producer<'packet, Error = Error> + 'producer,
-    Initializer: FnOnce() -> Result<Pin<Box<WrappedProducer>>, Error>,
+    Initializer: Unpin + FnOnce() -> Result<Pin<Box<WrappedProducer>>, Error>,
 {
     type Error = Error;
 
@@ -47,7 +43,7 @@ where
         use std::mem;
         use LazyProducerState::*;
 
-        let this = unsafe { self.get_unchecked_mut() };
+        let this = self.get_mut();
 
         match mem::replace(&mut this.state, Complete) {
             Initialization(initializer) => match initializer() {

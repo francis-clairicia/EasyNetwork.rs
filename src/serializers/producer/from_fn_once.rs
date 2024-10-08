@@ -29,12 +29,12 @@ impl<F> fmt::Debug for FromFnOnceProducer<F> {
 
 impl<'buf, E, F> Producer<'buf> for FromFnOnceProducer<F>
 where
-    F: FnOnce() -> Result<Cow<'buf, [u8]>, E>,
+    F: Unpin + FnOnce() -> Result<Cow<'buf, [u8]>, E>,
 {
     type Error = E;
 
     fn next(self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error> {
-        let this = unsafe { self.get_unchecked_mut() };
+        let this = self.get_mut();
         match mem::replace(&mut this.0, FromFnOnceProducerState::Complete) {
             FromFnOnceProducerState::Start(next_fn) => next_fn().inspect(|_| this.0 = FromFnOnceProducerState::Succeeded).into(),
             FromFnOnceProducerState::Succeeded => ProducerState::Complete(Ok(())),

@@ -32,12 +32,12 @@ impl<'packet, 'producer, WrappedProducer, Func, Error> Producer<'packet> for Map
 where
     'packet: 'producer,
     WrappedProducer: ?Sized + Producer<'packet> + 'producer,
-    Func: FnOnce(Result<(), WrappedProducer::Error>) -> Result<(), Error>,
+    Func: Unpin + FnOnce(Result<(), WrappedProducer::Error>) -> Result<(), Error>,
 {
     type Error = Error;
 
     fn next(self: Pin<&mut Self>) -> ProducerState<'packet, Self::Error> {
-        let this = unsafe { self.get_unchecked_mut() };
+        let this = self.get_mut();
 
         match this.producer.as_mut().next() {
             ProducerState::Yielded(bytes) => ProducerState::Yielded(bytes),

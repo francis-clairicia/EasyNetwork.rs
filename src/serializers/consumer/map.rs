@@ -31,14 +31,14 @@ impl<WrappedConsumer: ?Sized, Func> fmt::Debug for MapConsumer<WrappedConsumer, 
 impl<WrappedConsumer, Func, T, E> Consumer for MapConsumer<WrappedConsumer, Func>
 where
     WrappedConsumer: ?Sized + Consumer,
-    Func: FnOnce(Result<WrappedConsumer::Item, WrappedConsumer::Error>) -> Result<T, E>,
+    Func: Unpin + FnOnce(Result<WrappedConsumer::Item, WrappedConsumer::Error>) -> Result<T, E>,
 {
     type Item = T;
 
     type Error = E;
 
     fn consume<'buf>(self: Pin<&mut Self>, buf: &'buf [u8]) -> ConsumerState<'buf, Self::Item, Self::Error> {
-        let this = unsafe { self.get_unchecked_mut() };
+        let this = self.get_mut();
         match this.consumer.as_mut().consume(buf) {
             ConsumerState::InputNeeded => ConsumerState::InputNeeded,
             ConsumerState::Complete(result, remainder) => {

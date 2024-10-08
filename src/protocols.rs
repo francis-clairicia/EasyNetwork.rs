@@ -248,6 +248,7 @@ mod stream {
         Converter: PacketConverterComposite<
             'sent_packet,
             'static,
+            SentBusinessPacket: Unpin,
             SentDTOPacket: Borrow<Serializer::SerializedPacket>,
             ReceivedDTOPacket = Serializer::DeserializedPacket,
         >,
