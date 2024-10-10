@@ -4,12 +4,12 @@ use std::{
     pin::Pin,
 };
 
-pub fn map<'packet, WrappedProducer: ?Sized, Func>(
+pub fn map<'buf, WrappedProducer: ?Sized, Func>(
     producer: Pin<Box<WrappedProducer>>,
     func: Func,
 ) -> Pin<Box<MapProducer<WrappedProducer, Func>>>
 where
-    MapProducer<WrappedProducer, Func>: Producer<'packet>,
+    MapProducer<WrappedProducer, Func>: Producer<'buf>,
 {
     Box::pin(MapProducer {
         producer,
@@ -28,15 +28,15 @@ impl<WrappedProducer: ?Sized, Func> fmt::Debug for MapProducer<WrappedProducer, 
     }
 }
 
-impl<'packet, 'producer, WrappedProducer, Func, Error> Producer<'packet> for MapProducer<WrappedProducer, Func>
+impl<'buf, 'producer, WrappedProducer, Func, Error> Producer<'buf> for MapProducer<WrappedProducer, Func>
 where
-    'packet: 'producer,
-    WrappedProducer: ?Sized + Producer<'packet> + 'producer,
+    'buf: 'producer,
+    WrappedProducer: ?Sized + Producer<'buf> + 'producer,
     Func: Unpin + FnOnce(Result<(), WrappedProducer::Error>) -> Result<(), Error>,
 {
     type Error = Error;
 
-    fn next(self: Pin<&mut Self>) -> ProducerState<'packet, Self::Error> {
+    fn next(self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error> {
         let this = self.get_mut();
 
         match this.producer.as_mut().next() {
