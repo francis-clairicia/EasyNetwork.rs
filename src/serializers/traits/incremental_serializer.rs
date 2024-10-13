@@ -31,3 +31,57 @@ impl<S: IncrementalPacketSerializer> IntoIncrementalPacketSerializer for S {
         self
     }
 }
+
+impl<'a, S: ?Sized + IncrementalPacketSerializer> IncrementalPacketSerializer for &'a S {
+    type IncrementalSerializeError = S::IncrementalSerializeError;
+    type IncrementalDeserializeError = S::IncrementalDeserializeError;
+
+    fn incremental_serialize<'serializer, 'packet: 'serializer>(
+        &'serializer self,
+        packet: &'packet Self::SerializedPacket,
+    ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
+        (*self).incremental_serialize(packet)
+    }
+
+    fn incremental_deserialize<'serializer>(
+        &'serializer self,
+    ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>> {
+        (*self).incremental_deserialize()
+    }
+}
+
+impl<S: ?Sized + IncrementalPacketSerializer> IncrementalPacketSerializer for Box<S> {
+    type IncrementalSerializeError = S::IncrementalSerializeError;
+    type IncrementalDeserializeError = S::IncrementalDeserializeError;
+
+    fn incremental_serialize<'serializer, 'packet: 'serializer>(
+        &'serializer self,
+        packet: &'packet Self::SerializedPacket,
+    ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
+        (**self).incremental_serialize(packet)
+    }
+
+    fn incremental_deserialize<'serializer>(
+        &'serializer self,
+    ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>> {
+        (**self).incremental_deserialize()
+    }
+}
+
+impl<S: ?Sized + IncrementalPacketSerializer> IncrementalPacketSerializer for std::sync::Arc<S> {
+    type IncrementalSerializeError = S::IncrementalSerializeError;
+    type IncrementalDeserializeError = S::IncrementalDeserializeError;
+
+    fn incremental_serialize<'serializer, 'packet: 'serializer>(
+        &'serializer self,
+        packet: &'packet Self::SerializedPacket,
+    ) -> Pin<Box<dyn Producer<'packet, Error = Self::IncrementalSerializeError> + 'serializer>> {
+        (**self).incremental_serialize(packet)
+    }
+
+    fn incremental_deserialize<'serializer>(
+        &'serializer self,
+    ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>> {
+        (**self).incremental_deserialize()
+    }
+}
