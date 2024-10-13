@@ -1,3 +1,3 @@
 mod auto_separated;
 
-pub use auto_separated::{AutoSeparatedPacketSerializer, IncrementalDeserializeError, PacketSerializerWithSeparator};
+pub use auto_separated::{AutoSeparatedDeserializeError, AutoSeparatedPacketSerializer, PacketSerializerWithSeparator};

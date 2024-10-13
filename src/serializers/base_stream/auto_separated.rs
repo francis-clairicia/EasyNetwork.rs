@@ -14,7 +14,7 @@ pub trait PacketSerializerWithSeparator: PacketSerializer {
 }
 
 #[derive(Debug)]
-pub enum IncrementalDeserializeError<E> {
+pub enum AutoSeparatedDeserializeError<E> {
     LimitOverrun(LimitOverrunError),
     Deserialization(E),
 }
@@ -71,7 +71,7 @@ impl<S: PacketSerializerWithSeparator> PacketSerializer for AutoSeparatedPacketS
 
 impl<S: PacketSerializerWithSeparator> IncrementalPacketSerializer for AutoSeparatedPacketSerializer<S> {
     type IncrementalSerializeError = Self::SerializeError;
-    type IncrementalDeserializeError = IncrementalDeserializeError<Self::DeserializeError>;
+    type IncrementalDeserializeError = AutoSeparatedDeserializeError<Self::DeserializeError>;
 
     fn incremental_serialize<'serializer, 'packet: 'serializer>(
         &'serializer self,
@@ -95,7 +95,7 @@ impl<S: PacketSerializerWithSeparator> IncrementalPacketSerializer for AutoSepar
         let mut reader = BufferedStreamReader::new();
 
         consumer::from_fn(move |buf| {
-            use IncrementalDeserializeError::*;
+            use AutoSeparatedDeserializeError::*;
 
             match reader.read_until_from(buf, self.separator(), self.buffer_limit(), self.keep_separator_at_end()) {
                 Ok(data) => {
