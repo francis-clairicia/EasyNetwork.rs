@@ -36,7 +36,13 @@ where
     fn next(self: Pin<&mut Self>) -> ProducerState<'buf, Self::Error> {
         let this = self.get_mut();
         match mem::replace(&mut this.0, FromFnOnceProducerState::Complete) {
-            FromFnOnceProducerState::Start(next_fn) => next_fn().inspect(|_| this.0 = FromFnOnceProducerState::Succeeded).into(),
+            FromFnOnceProducerState::Start(next_fn) => match next_fn() {
+                Ok(bytes) => {
+                    this.0 = FromFnOnceProducerState::Succeeded;
+                    ProducerState::Yielded(bytes)
+                }
+                Err(error) => ProducerState::Complete(Err(error)),
+            },
             FromFnOnceProducerState::Succeeded => ProducerState::Complete(Ok(())),
             FromFnOnceProducerState::Complete => panic!("producer used after completion"),
         }
