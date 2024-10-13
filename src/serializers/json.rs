@@ -83,7 +83,7 @@ where
             let buf = if buffer.is_empty() {
                 BufferReference::Borrowed(buf)
             } else {
-                buffer.extend_from_slice(buf);
+                buffer.extend(buf);
                 BufferReference::Copied(&buffer)
             };
 
@@ -108,8 +108,8 @@ where
             };
             if let Err(ref e) = &result {
                 if e.is_eof() {
-                    if let BufferReference::Borrowed(b) = cursor.get_ref() {
-                        buffer.extend_from_slice(b);
+                    if let BufferReference::Borrowed(b) = cursor.into_inner() {
+                        buffer.extend(b);
                     }
                     return ConsumerState::InputNeeded;
                 }

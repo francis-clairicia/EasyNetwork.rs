@@ -35,7 +35,7 @@ impl BufferedStreamReader {
     }
 
     pub fn fill_buf(&mut self, buf: &[u8]) {
-        self.buffer.extend_from_slice(buf);
+        self.buffer.extend(buf);
     }
 
     #[inline]
@@ -49,11 +49,11 @@ impl BufferedStreamReader {
                 Err(StreamReadError::InputNeeded)
             } else {
                 let data = &received_buf[..max_size];
-                self.buffer.extend_from_slice(&received_buf[max_size..]);
+                self.buffer.extend(&received_buf[max_size..]);
                 Ok(Cow::Borrowed(data))
             }
         } else {
-            self.buffer.extend_from_slice(received_buf);
+            self.buffer.extend(received_buf);
             let data: Vec<u8> = self.buffer.drain(..max_size).collect();
             Ok(Cow::Owned(data))
         }
@@ -67,14 +67,14 @@ impl BufferedStreamReader {
     pub fn read_exactly_from<'buf>(&mut self, received_buf: &'buf [u8], n: usize) -> StreamReadResult<'buf> {
         if self.buffer.is_empty() {
             let data = &received_buf[..n];
-            self.buffer.extend_from_slice(&received_buf[n..]);
+            self.buffer.extend(&received_buf[n..]);
             if data.len() == n {
                 Ok(Cow::Borrowed(data))
             } else {
                 Err(StreamReadError::InputNeeded)
             }
         } else {
-            self.buffer.extend_from_slice(received_buf);
+            self.buffer.extend(received_buf);
             if self.buffer.len() >= n {
                 let data: Vec<u8> = self.buffer.drain(..n).collect();
                 Ok(Cow::Owned(data))
@@ -107,7 +107,7 @@ impl BufferedStreamReader {
             let sepidx = match parser::find_subsequence(received_buf, separator) {
                 Some(idx) => idx,
                 None => {
-                    self.buffer.extend_from_slice(received_buf);
+                    self.buffer.extend(received_buf);
                     return Err(self.check_buffer_size(separator, limit));
                 }
             };
@@ -117,10 +117,10 @@ impl BufferedStreamReader {
             } else {
                 &received_buf[..sepidx]
             };
-            self.buffer.extend_from_slice(&received_buf[offset..]);
+            self.buffer.extend(&received_buf[offset..]);
             Ok(Cow::Borrowed(data))
         } else {
-            self.buffer.extend_from_slice(received_buf);
+            self.buffer.extend(received_buf);
             let sepidx = match parser::find_subsequence(&self.buffer, separator) {
                 Some(idx) => idx,
                 None => return Err(self.check_buffer_size(separator, limit)),

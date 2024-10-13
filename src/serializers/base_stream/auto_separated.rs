@@ -82,7 +82,7 @@ impl<S: PacketSerializerWithSeparator> IncrementalPacketSerializer for AutoSepar
                 let separator = self.separator();
 
                 if !packet.ends_with(separator) {
-                    packet.extend_from_slice(separator);
+                    packet.extend(separator);
                 }
                 Cow::Owned(packet)
             })
