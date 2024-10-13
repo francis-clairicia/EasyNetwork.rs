@@ -8,43 +8,28 @@ use super::{
 use std::{borrow::Cow, marker::PhantomData, pin::Pin};
 
 #[derive(Debug)]
-pub struct JSONSerializer<SerializedPacket: ?Sized = serde_json::Value, DeserializedPacket = serde_json::Value> {
-    _ser: PhantomData<fn() -> PhantomData<SerializedPacket>>,
-    _de: PhantomData<fn() -> PhantomData<DeserializedPacket>>,
+pub struct JSONSerializer {
+    // Here to force the user to use ::new() or ::default()
+    _private: PhantomData<()>,
 }
 
-impl<SerializedPacket, DeserializedPacket> JSONSerializer<SerializedPacket, DeserializedPacket>
-where
-    SerializedPacket: serde::Serialize + ?Sized,
-    DeserializedPacket: serde::de::DeserializeOwned,
-{
+impl JSONSerializer {
     pub fn new() -> Self {
-        Self {
-            _ser: PhantomData,
-            _de: PhantomData,
-        }
+        Self { _private: PhantomData }
     }
 }
 
-impl<SerializedPacket, DeserializedPacket> Default for JSONSerializer<SerializedPacket, DeserializedPacket>
-where
-    SerializedPacket: serde::Serialize + ?Sized,
-    DeserializedPacket: serde::de::DeserializeOwned,
-{
+impl Default for JSONSerializer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<SerializedPacket, DeserializedPacket> PacketSerializer for JSONSerializer<SerializedPacket, DeserializedPacket>
-where
-    SerializedPacket: serde::Serialize + ?Sized,
-    DeserializedPacket: serde::de::DeserializeOwned,
-{
-    type SerializedPacket = SerializedPacket;
+impl PacketSerializer for JSONSerializer {
+    type SerializedPacket = serde_json::Value;
     type SerializeError = serde_json::Error;
 
-    type DeserializedPacket = DeserializedPacket;
+    type DeserializedPacket = serde_json::Value;
     type DeserializeError = serde_json::Error;
 
     fn serialize(&self, packet: &Self::SerializedPacket) -> Result<Vec<u8>, Self::SerializeError> {
@@ -56,11 +41,7 @@ where
     }
 }
 
-impl<SerializedPacket, DeserializedPacket> IncrementalPacketSerializer for JSONSerializer<SerializedPacket, DeserializedPacket>
-where
-    SerializedPacket: serde::Serialize + ?Sized,
-    DeserializedPacket: serde::de::DeserializeOwned,
-{
+impl IncrementalPacketSerializer for JSONSerializer {
     type IncrementalSerializeError = serde_json::Error;
 
     type IncrementalDeserializeError = serde_json::Error;
@@ -75,6 +56,7 @@ where
     fn incremental_deserialize<'serializer>(
         &'serializer self,
     ) -> Pin<Box<dyn Consumer<Item = Self::DeserializedPacket, Error = Self::IncrementalDeserializeError> + 'serializer>> {
+        use serde::Deserialize;
         use std::io::{self, Seek, SeekFrom};
 
         let mut buffer: Vec<u8> = Default::default();
@@ -89,34 +71,40 @@ where
 
             let mut cursor = io::Cursor::new(buf);
 
-            let result = {
+            let result: Result<serde_json::Value, serde_json::Error> = {
                 // NOTE: Do not use serde_json::from_reader() directly
                 //       because it is expected to have trailing characters.
                 let mut deserializer = serde_json::Deserializer::from_reader(&mut cursor);
-                match DeserializedPacket::deserialize(&mut deserializer) {
-                    Ok(packet) => {
-                        // Will discard remaining whitespaces BUT we don't care about
-                        // trailing whitespace error.
-                        if deserializer.end().is_err() {
-                            // The found character has been eaten. Let's include it again into remaining data.
-                            cursor.seek_relative(-1).ok();
-                        }
-                        Ok(packet)
+
+                let result = serde_json::Value::deserialize(&mut deserializer);
+
+                if result.is_ok() {
+                    // Will discard remaining whitespaces BUT we don't care about
+                    // trailing whitespace error.
+                    if deserializer.end().is_err() {
+                        // The found character has been eaten. Let's include it again into remaining data.
+                        cursor.seek_relative(-1).ok();
                     }
-                    error => error,
                 }
+
+                result
             };
             if let Err(ref e) = &result {
-                if e.is_eof() {
-                    if let BufferReference::Borrowed(b) = cursor.into_inner() {
-                        buffer.extend(b);
+                use serde_json::error::Category;
+
+                match e.classify() {
+                    Category::Eof => {
+                        if let BufferReference::Borrowed(b) = cursor.into_inner() {
+                            buffer.extend(b);
+                        }
+                        return ConsumerState::InputNeeded;
                     }
-                    return ConsumerState::InputNeeded;
-                }
-                if e.is_syntax() {
-                    // On syntax error we cannot know if the remainder is valid.
-                    cursor.seek(SeekFrom::End(0)).ok();
-                }
+                    Category::Syntax => {
+                        // On syntax error we cannot know if the remainder is valid.
+                        cursor.seek(SeekFrom::End(0)).ok();
+                    }
+                    _ => {}
+                };
             }
 
             let position = cursor.position() as usize;
@@ -150,7 +138,6 @@ impl<'b, 'c> AsRef<[u8]> for BufferReference<'b, 'c> {
 mod tests {
     use std::borrow::Cow;
 
-    use serde::{Deserialize, Serialize};
     use serde_json::json;
 
     use super::JSONSerializer;
@@ -168,19 +155,8 @@ mod tests {
     }
 
     #[test]
-    fn test_type_inference_with_given_types() {
-        #[derive(Serialize, Deserialize)]
-        struct Test {
-            value: i32,
-        }
-
-        assert_is_serializer::<JSONSerializer<Test, Test>>();
-        assert_is_incremental_serializer::<JSONSerializer<Test, Test>>();
-    }
-
-    #[test]
     fn test_serialize() {
-        let serializer: JSONSerializer = JSONSerializer::new();
+        let serializer = JSONSerializer::new();
         let packet = json!({"key": [1, 2, 3], "data": null});
 
         assert_eq!(
@@ -191,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_incremental_serialize() {
-        let serializer: JSONSerializer = JSONSerializer::new();
+        let serializer = JSONSerializer::new();
         let packet = json!({"key": [1, 2, 3], "data": null});
 
         let mut producer = serializer.incremental_serialize(&packet);
@@ -208,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_deserialize() {
-        let serializer: JSONSerializer = JSONSerializer::new();
+        let serializer = JSONSerializer::new();
 
         assert_eq!(
             serializer.deserialize(b"{\"data\":null,\"key\":[1,2,3]}".into()).unwrap(),
@@ -218,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_incremental_deserialize() {
-        let serializer: JSONSerializer = JSONSerializer::new();
+        let serializer = JSONSerializer::new();
 
         let mut consumer = serializer.incremental_deserialize();
 
@@ -235,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_incremental_deserialize_all_at_once() {
-        let serializer: JSONSerializer = JSONSerializer::new();
+        let serializer = JSONSerializer::new();
 
         let mut consumer = serializer.incremental_deserialize();
 
