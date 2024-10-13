@@ -1,5 +1,6 @@
 use std::{borrow::Cow, pin::Pin};
 
+#[derive(Debug, Clone)]
 pub enum ProducerState<'buf, E> {
     Yielded(Cow<'buf, [u8]>),
     Complete(Result<(), E>),

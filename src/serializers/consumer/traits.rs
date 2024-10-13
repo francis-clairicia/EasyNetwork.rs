@@ -1,5 +1,6 @@
 use std::{borrow::Cow, pin::Pin};
 
+#[derive(Debug, Clone)]
 pub enum ConsumerState<'buf, T, E> {
     InputNeeded,
     Complete(Result<T, E>, Cow<'buf, [u8]>),
