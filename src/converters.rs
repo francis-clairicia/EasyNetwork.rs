@@ -61,12 +61,12 @@ pub(crate) mod testing_tools {
     use super::PacketConverterComposite;
     use std::{convert::Infallible, marker::PhantomData};
 
-    pub struct NoopConverter<SentPacket, ReceivedPacket> {
+    pub struct NoopConverterComposite<SentPacket, ReceivedPacket> {
         _ser: PhantomData<fn() -> PhantomData<SentPacket>>,
         _de: PhantomData<fn() -> PhantomData<ReceivedPacket>>,
     }
 
-    impl<SentPacket, ReceivedPacket> NoopConverter<SentPacket, ReceivedPacket> {
+    impl<SentPacket, ReceivedPacket> NoopConverterComposite<SentPacket, ReceivedPacket> {
         pub fn new() -> Self {
             Self {
                 _ser: PhantomData,
@@ -75,14 +75,14 @@ pub(crate) mod testing_tools {
         }
     }
 
-    impl<SentPacket, ReceivedPacket> Default for NoopConverter<SentPacket, ReceivedPacket> {
+    impl<SentPacket, ReceivedPacket> Default for NoopConverterComposite<SentPacket, ReceivedPacket> {
         fn default() -> Self {
             Self::new()
         }
     }
 
     impl<'sent_packet, 'received_packet, SentPacket: 'sent_packet, ReceivedPacket: 'received_packet>
-        PacketConverterComposite<'sent_packet, 'received_packet> for NoopConverter<SentPacket, ReceivedPacket>
+        PacketConverterComposite<'sent_packet, 'received_packet> for NoopConverterComposite<SentPacket, ReceivedPacket>
     {
         type SentBusinessPacket = SentPacket;
         type ReceivedBusinessPacket = ReceivedPacket;

@@ -333,7 +333,7 @@ mod tests {
     use std::borrow::Cow;
 
     use super::{DatagramProtocol, DatagramProtocolMethods, StreamProtocol, StreamProtocolMethods};
-    use crate::converters::testing_tools::NoopConverter;
+    use crate::converters::testing_tools::NoopConverterComposite;
     use crate::serializers::testing_tools::NoopSerializer;
     use crate::serializers::{consumer::ConsumerState, producer::ProducerState};
 
@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_datagram_protocol_new_with_converter() {
-        let protocol = DatagramProtocol::from(NoopSerializer).with_converter(NoopConverter::default());
+        let protocol = DatagramProtocol::from(NoopSerializer).with_converter(NoopConverterComposite::default());
 
         assert_eq!(protocol.make_datagram(b"packet".to_vec()).expect("infallible"), b"packet".to_vec());
         assert_eq!(protocol.build_packet_from_datagram(b"packet".into()).expect("infallible"), b"packet".to_vec());
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn test_stream_protocol_new_with_converter_as_owned() {
-        let protocol = StreamProtocol::from(NoopSerializer).with_converter(NoopConverter::default());
+        let protocol = StreamProtocol::from(NoopSerializer).with_converter(NoopConverterComposite::default());
 
         {
             let data = b"packet".to_vec();
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn test_stream_protocol_new_with_converter_as_ref() {
-        let protocol = StreamProtocol::from(NoopSerializer).with_converter(NoopConverter::default());
+        let protocol = StreamProtocol::from(NoopSerializer).with_converter(NoopConverterComposite::default());
         let data = b"packet".to_vec();
 
         {
