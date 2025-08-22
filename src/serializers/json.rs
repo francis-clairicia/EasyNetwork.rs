@@ -61,15 +61,15 @@ impl IncrementalPacketSerializer for JSONSerializer {
 
         let mut buffer: Vec<u8> = Default::default();
 
-        consumer::from_fn(move |buf| {
-            let buf = if buffer.is_empty() {
-                BufferReference::Borrowed(buf)
+        consumer::from_fn(move |data| {
+            let data = if buffer.is_empty() {
+                BufferReference::Borrowed(data)
             } else {
-                buffer.extend(buf);
+                buffer.extend(data);
                 BufferReference::Copied(&buffer)
             };
 
-            let mut cursor = io::Cursor::new(buf);
+            let mut cursor = io::Cursor::new(data);
 
             let result: Result<serde_json::Value, serde_json::Error> = {
                 // NOTE: Do not use serde_json::from_reader() directly

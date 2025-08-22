@@ -42,7 +42,7 @@ where
         match this.consumer.as_mut().consume(buf) {
             ConsumerState::InputNeeded => ConsumerState::InputNeeded,
             ConsumerState::Complete(result, remainder) => {
-                let map_fn = this.func.take().expect("a consumer should not be called after completion");
+                let map_fn = this.func.take().expect("producer used after completion");
                 let result = map_fn(result);
 
                 ConsumerState::Complete(result, remainder)

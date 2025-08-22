@@ -28,10 +28,9 @@ impl<WrappedProducer: ?Sized, Func> fmt::Debug for MapProducer<WrappedProducer, 
     }
 }
 
-impl<'buf, 'producer, WrappedProducer, Func, Error> Producer<'buf> for MapProducer<WrappedProducer, Func>
+impl<'buf, WrappedProducer, Func, Error> Producer<'buf> for MapProducer<WrappedProducer, Func>
 where
-    'buf: 'producer,
-    WrappedProducer: ?Sized + Producer<'buf> + 'producer,
+    WrappedProducer: ?Sized + Producer<'buf>,
     Func: Unpin + FnOnce(Result<(), WrappedProducer::Error>) -> Result<(), Error>,
 {
     type Error = Error;
@@ -42,7 +41,7 @@ where
         match this.producer.as_mut().next() {
             ProducerState::Yielded(bytes) => ProducerState::Yielded(bytes),
             ProducerState::Complete(result) => {
-                let map_fn = this.func.take().expect("a producer should not be used after completion");
+                let map_fn = this.func.take().expect("producer used after completion");
                 let result = map_fn(result);
 
                 ProducerState::Complete(result)

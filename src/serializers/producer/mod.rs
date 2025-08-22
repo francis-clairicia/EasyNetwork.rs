@@ -4,7 +4,6 @@ mod from_iter;
 mod lazy;
 mod map;
 mod traits;
-mod wrapper;
 
 #[cfg(feature = "nightly")]
 mod from_coroutine;
@@ -15,7 +14,6 @@ pub use from_iter::{from_iter, FromIterProducer};
 pub use lazy::{lazy, LazyProducer};
 pub use map::{map, MapProducer};
 pub use traits::{Producer, ProducerState};
-pub use wrapper::{wrap, ProducerWrapper};
 
 #[cfg(feature = "nightly")]
 pub use from_coroutine::{from_coroutine, FromCoroutineProducer};

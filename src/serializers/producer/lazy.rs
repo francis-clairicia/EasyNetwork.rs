@@ -31,10 +31,9 @@ impl<Initializer, WrappedProducer: ?Sized> fmt::Debug for LazyProducer<Initializ
     }
 }
 
-impl<'buf, 'producer, Initializer, WrappedProducer, Error> Producer<'buf> for LazyProducer<Initializer, WrappedProducer>
+impl<'buf, Initializer, WrappedProducer, Error> Producer<'buf> for LazyProducer<Initializer, WrappedProducer>
 where
-    'buf: 'producer,
-    WrappedProducer: ?Sized + Producer<'buf, Error = Error> + 'producer,
+    WrappedProducer: ?Sized + Producer<'buf, Error = Error>,
     Initializer: Unpin + FnOnce() -> Result<Pin<Box<WrappedProducer>>, Error>,
 {
     type Error = Error;
